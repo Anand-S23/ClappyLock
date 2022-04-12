@@ -1,8 +1,6 @@
 package com.example.clappylock
 
 import android.Manifest
-import android.app.Activity
-import android.app.ProgressDialog
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.content.Context
@@ -17,28 +15,40 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import java.io.IOException
 
-
-
 class ControlActivity: AppCompatActivity() {
 
     companion object {
-        var m_myUUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
-        var m_bluetoothSocket: BluetoothSocket? = null
-        lateinit var m_progress: ProgressDialog
-        lateinit var m_bluetoothAdapter: BluetoothAdapter
-        var m_isConnected: Boolean = false
-        lateinit var m_address: String
+        var deviceUUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+        var bluetoothSocket: BluetoothSocket? = null
+        lateinit var bluetoothAdapter: BluetoothAdapter
+        var isConnected: Boolean = false
+        lateinit var address: String
     }
+
+    lateinit var controlLedOn: Button
+    lateinit var controlLedOff: Button
+    lateinit var controlLedDisconnect: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.control_layout)
+        address = intent.getStringExtra(MainActivity.EXTRA_ADDRESS).toString()
+
+        ConnectToDevice(this).execute()
+
+        controlLedOn = findViewById(R.id.control_led_on)
+        controlLedOff = findViewById(R.id.control_led_off)
+        controlLedDisconnect = findViewById(R.id.control_led_disconnect)
+
+        controlLedOn.setOnClickListener { sendCommand("a") }
+        controlLedOff.setOnClickListener { sendCommand("b") }
+        controlLedDisconnect.setOnClickListener { disconnect() }
     }
 
     private fun sendCommand(input: String) {
-        if (m_bluetoothSocket != null) {
+        if (bluetoothSocket != null) {
             try{
-                m_bluetoothSocket!!.outputStream.write(input.toByteArray())
+                bluetoothSocket!!.outputStream.write(input.toByteArray())
             } catch(e: IOException) {
                 e.printStackTrace()
             }
@@ -46,15 +56,16 @@ class ControlActivity: AppCompatActivity() {
     }
 
     private fun disconnect() {
-        if (m_bluetoothSocket != null) {
+        if (bluetoothSocket != null) {
             try {
-                m_bluetoothSocket!!.close()
-                m_bluetoothSocket = null
-                m_isConnected = false
+                bluetoothSocket!!.close()
+                bluetoothSocket = null
+                isConnected = false
             } catch (e: IOException) {
                 e.printStackTrace()
             }
         }
+
         finish()
     }
 
@@ -62,33 +73,15 @@ class ControlActivity: AppCompatActivity() {
         private var connectSuccess: Boolean = true
         private val context: Context = c
 
-        override fun onPreExecute() {
-            super.onPreExecute()
-            m_progress = ProgressDialog.show(context, "Connecting...", "please wait")
-        }
-
         override fun doInBackground(vararg p0: Void?): String? {
             try {
-                if (m_bluetoothSocket == null || !m_isConnected) {
-                    m_bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
-                    val device: BluetoothDevice = m_bluetoothAdapter.getRemoteDevice(m_address)
-                    if (ActivityCompat.checkSelfPermission(
-                            context,
-                            Manifest.permission.BLUETOOTH_CONNECT
-                        ) != PackageManager.PERMISSION_GRANTED
-                    ) {
-                        // TODO: Consider calling
-                        //    ActivityCompat#requestPermissions
-                        // here to request the missing permissions, and then overriding
-                        //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-                        //                                          int[] grantResults)
-                        // to handle the case where the user grants the permission. See the documentation
-                        // for ActivityCompat#requestPermissions for more details.
-                        return null
-                    }
-                    m_bluetoothSocket = device.createInsecureRfcommSocketToServiceRecord(m_myUUID)
+                if (bluetoothSocket == null || !isConnected) {
+                    bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
+                    val device: BluetoothDevice = bluetoothAdapter.getRemoteDevice(address)
+                    if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) { }
+                    bluetoothSocket = device.createInsecureRfcommSocketToServiceRecord(deviceUUID)
                     BluetoothAdapter.getDefaultAdapter().cancelDiscovery()
-                    m_bluetoothSocket!!.connect()
+                    bluetoothSocket!!.connect()
                 }
             } catch (e: IOException) {
                 connectSuccess = false
@@ -102,9 +95,8 @@ class ControlActivity: AppCompatActivity() {
             if (!connectSuccess) {
                 Log.i("data", "couldn't connect")
             } else {
-                m_isConnected = true
+                isConnected = true
             }
-            m_progress.dismiss()
         }
     }
 }

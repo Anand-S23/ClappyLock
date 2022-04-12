@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.util.Log
 import android.widget.*
 import androidx.core.app.ActivityCompat
 
@@ -32,7 +33,7 @@ class MainActivity : AppCompatActivity() {
 
         if (bluetoothAdapter == null) {
             val msg = "This device does not support bluetooth"
-            Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -43,7 +44,7 @@ class MainActivity : AppCompatActivity() {
 
             if (!permissionGranted) {
                 val msg = "Bluetooth permissions required"
-                Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+                Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
             }
 
             startActivityForResult(enableBtIntent, ENABLE_BLUETOOTH_REQUEST)
@@ -51,7 +52,8 @@ class MainActivity : AppCompatActivity() {
 
         if (!bluetoothAdapter.isDiscovering) {
             val msg = "Making device discoverable"
-            Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+            Log.d("MainActivity", msg)
+            // Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
 
             val enableDiscoverIntent = Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE)
             startActivityForResult(enableDiscoverIntent, ENABLE_DISCOVER_REQUEST)
@@ -69,7 +71,7 @@ class MainActivity : AppCompatActivity() {
         if (bluetoothAdapter.isEnabled) {
             if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
                 val msg = "Make device discoverable first"
-                Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+                Log.d("MainActivity", msg)
             }
 
             val devices = bluetoothAdapter.bondedDevices
@@ -77,12 +79,10 @@ class MainActivity : AppCompatActivity() {
             if (devices.isNotEmpty()) {
                 for (device: BluetoothDevice in devices) {
                     list.add(device)
-                    val msg = device.name
-                    Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
                 }
             } else {
                 val msg = "No paired device found"
-                Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+                Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
             }
 
             val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, list)
@@ -103,20 +103,20 @@ class MainActivity : AppCompatActivity() {
             ENABLE_BLUETOOTH_REQUEST -> {
                 if (resultCode == Activity.RESULT_OK) {
                     val msg = "Connected to bluetooth"
-                    Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
                 } else {
                     val msg = "Could not connect to bluetooth"
-                    Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
                 }
             }
 
             ENABLE_DISCOVER_REQUEST -> {
                 if (resultCode == Activity.RESULT_OK) {
                     val msg = "Device is discoverable"
-                    Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
                 } else {
                     val msg = "Could not make device discoverable"
-                    Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
                 }
             }
         }
