@@ -7,28 +7,28 @@
 
 
     <Button
-        android:id="@+id/control_led_on"
+        android:id="@+id/control_led"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="50dp"
-        android:text="@string/on"
+        android:text="@string/turn_on"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.498"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
     <Button
-        android:id="@+id/control_led_off"
+        android:id="@+id/control_listening"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="50dp"
-        android:text="@string/off"
+        android:text="@string/start_listen"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/control_led_on" />
+        app:layout_constraintTop_toBottomOf="@+id/control_led" />
 
     <Button
-        android:id="@+id/control_led_disconnect"
+        android:id="@+id/device_disconnect"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="50dp"
@@ -36,5 +36,17 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.498"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/control_led_off" />
+        app:layout_constraintTop_toBottomOf="@+id/control_listening" />
+
+    <TextView
+        android:id="@+id/listen_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="20sp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.498"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/device_disconnect"
+        app:layout_constraintVertical_bias="0.273" />
 </androidx.constraintlayout.widget.ConstraintLayout>

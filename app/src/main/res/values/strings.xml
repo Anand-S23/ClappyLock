@@ -1,7 +1,9 @@
 <resources>
     <string name="app_name">Clappy Lock</string>
     <string name="refresh">Refresh</string>
-    <string name="on">On</string>
-    <string name="off">Off</string>
+    <string name="turn_on">Turn On</string>
+    <string name="turn_off">Turn Off</string>
+    <string name="start_listen">Start Listening</string>
+    <string name="stop_listen">Stop Listening</string>
     <string name="disconnect">Disconnect</string>
 </resources>

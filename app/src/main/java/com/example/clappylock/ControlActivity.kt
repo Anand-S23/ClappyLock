@@ -4,15 +4,18 @@ import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.content.Context
-import android.os.AsyncTask
-import android.os.Bundle
 import java.util.*
 import android.bluetooth.BluetoothSocket
 import android.content.pm.PackageManager
+import android.os.*
 import android.util.Log
 import android.widget.Button
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import java.io.IOException
 
 class ControlActivity: AppCompatActivity() {
@@ -25,9 +28,16 @@ class ControlActivity: AppCompatActivity() {
         lateinit var address: String
     }
 
-    lateinit var controlLedOn: Button
-    lateinit var controlLedOff: Button
-    lateinit var controlLedDisconnect: Button
+    var time = 0
+    var currentTime = 0
+    var ledOn = false
+    var clockRunning = true
+    var paused = true
+
+    private lateinit var controlLed: Button
+    private lateinit var controlListening: Button
+    private lateinit var deviceDisconnect: Button
+    private lateinit var listenText: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -35,14 +45,63 @@ class ControlActivity: AppCompatActivity() {
         address = intent.getStringExtra(MainActivity.EXTRA_ADDRESS).toString()
 
         ConnectToDevice(this).execute()
+        initClock(1)
 
-        controlLedOn = findViewById(R.id.control_led_on)
-        controlLedOff = findViewById(R.id.control_led_off)
-        controlLedDisconnect = findViewById(R.id.control_led_disconnect)
+        GlobalScope.launch(Dispatchers.Default) {
+            while (clockRunning) {
+                if (time != currentTime) {
+                    time = currentTime
+                    Log.d("ControlActivityLog", "$time")
+                    // TODO: Update audio
+                }
+            }
+        }
 
-        controlLedOn.setOnClickListener { sendCommand("a") }
-        controlLedOff.setOnClickListener { sendCommand("b") }
-        controlLedDisconnect.setOnClickListener { disconnect() }
+        controlLed = findViewById(R.id.control_led)
+        controlListening = findViewById(R.id.control_listening)
+        deviceDisconnect = findViewById(R.id.device_disconnect)
+        listenText = findViewById(R.id.listen_text)
+
+        controlLed.setOnClickListener {
+            if (!ledOn) {
+                sendCommand("a")
+                controlLed.text = getString(R.string.turn_off)
+            } else {
+                sendCommand("b")
+                controlLed.text = getString(R.string.turn_on)
+            }
+
+            ledOn = !ledOn
+        }
+
+        controlListening.setOnClickListener {
+            if (!paused) {
+                controlListening.text = "Start Listening"
+                // TODO: Pause listening
+            } else {
+                controlListening.text = "Stop Listening"
+                // TODO: Start listening
+            }
+
+            toggleClock()
+        }
+
+        deviceDisconnect.setOnClickListener { disconnect() }
+    }
+
+    private fun initClock(tickRate: Int) {
+        Thread {
+            while (clockRunning) {
+                if (!paused) {
+                    currentTime += tickRate
+                    Thread.sleep(1000)
+                }
+            }
+        }.start()
+    }
+
+    private fun toggleClock() {
+        paused = !paused
     }
 
     private fun sendCommand(input: String) {
