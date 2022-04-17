@@ -11,15 +11,18 @@ import android.os.Bundle
 import android.util.Log
 import android.widget.*
 import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var bluetoothAdapter: BluetoothAdapter
     private val ENABLE_BLUETOOTH_REQUEST = 1
     private val ENABLE_DISCOVER_REQUEST = 2
+    private val PERMISSIONS_REQ = 1
 
     companion object {
-        val EXTRA_ADDRESS: String = "extraAddress"
+        const val EXTRA_NAME: String = "extraName"
+        const val EXTRA_ADDRESS: String = "extraAddress"
     }
 
     private lateinit var selectDeviceList: ListView
@@ -59,6 +62,8 @@ class MainActivity : AppCompatActivity() {
             startActivityForResult(enableDiscoverIntent, ENABLE_DISCOVER_REQUEST)
         }
 
+        checkAudioPerms()
+
         selectDeviceList = findViewById(R.id.select_device_list)
         selectDeviceRefresh = findViewById(R.id.select_device_refresh)
 
@@ -89,12 +94,42 @@ class MainActivity : AppCompatActivity() {
             selectDeviceList.adapter = adapter
             selectDeviceList.onItemClickListener = AdapterView.OnItemClickListener { _, _, position, _ ->
                 val device: BluetoothDevice = list[position]
+                val name: String = device.name
                 val address: String = device.address
 
                 val intent = Intent(this, ControlActivity::class.java)
+                intent.putExtra(EXTRA_NAME, name)
                 intent.putExtra(EXTRA_ADDRESS, address)
                 startActivity(intent)
             }
+        }
+    }
+
+    private fun checkAudioPerms() {
+        val permissionsRequired = mutableListOf<String>()
+
+        val recPerm = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+        if (!recPerm) {
+            permissionsRequired.add(Manifest.permission.RECORD_AUDIO)
+        }
+
+        val storagePerm = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE
+        ) == PackageManager.PERMISSION_GRANTED
+        if (!storagePerm) {
+            permissionsRequired.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
+
+        if (permissionsRequired.isNotEmpty()) {
+            ActivityCompat.requestPermissions(
+                this,
+                permissionsRequired.toTypedArray(),
+                PERMISSIONS_REQ
+            )
         }
     }
 
