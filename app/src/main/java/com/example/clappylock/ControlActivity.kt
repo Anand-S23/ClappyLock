@@ -84,7 +84,23 @@ class ControlActivity: AppCompatActivity() {
             while (clockRunning) {
                 if (time != currentTime) {
                     time = currentTime
-                    Log.d("ControlActivityLog", "${recorder.maxAmplitude}")
+
+                    val currentAmp = recorder.maxAmplitude
+
+                    if (currentAmp > 20000) {
+                        Log.d("ControlActivityLog", "$currentAmp, $prevAudioAmplitude")
+
+                        var toggled = false
+
+                        if (prevAudioAmplitude > 20000 && (time - prevMaxAudioTime) < 5) {
+                            Log.d("ControlActivityLog", "$time, $prevMaxAudioTime")
+                            toggleLED()
+                            toggled = true
+                        }
+
+                        prevAudioAmplitude = currentAmp.toDouble()
+                        prevMaxAudioTime = if (toggled) 0 else time
+                    }
                 }
             }
         }
@@ -95,15 +111,12 @@ class ControlActivity: AppCompatActivity() {
         listenText = findViewById(R.id.listen_text)
 
         controlLed.setOnClickListener {
-            if (!ledOn) {
-                sendCommand("a")
+            toggleLED()
+            if (ledOn) {
                 controlLed.text = getString(R.string.turn_off)
             } else {
-                sendCommand("b")
                 controlLed.text = getString(R.string.turn_on)
             }
-
-            ledOn = !ledOn
         }
 
         controlListening.setOnClickListener {
@@ -148,6 +161,17 @@ class ControlActivity: AppCompatActivity() {
             val send = input.toByteArray()
             bluetoothConnectionService.write(send)
         }
+    }
+
+    private fun toggleLED() {
+        if (!ledOn) {
+            sendCommand("b")
+        } else {
+            sendCommand("a")
+        }
+
+        ledOn = !ledOn
+        prevMaxAudioTime = 0
     }
 
     private fun disconnect() {
