@@ -2,7 +2,6 @@ package com.example.clappylock
 
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
-import java.util.*
 import android.media.MediaRecorder
 import android.os.*
 import android.util.Log
@@ -25,23 +24,21 @@ class ControlActivity: AppCompatActivity() {
 
         const val DEVICE_NAME = "device_name"
         const val TOAST = "toast"
-
-        var deviceUUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
     }
 
-    lateinit var bluetoothConnectionService: BluetoothConnectionService
-    lateinit var bluetoothAdapter: BluetoothAdapter
+    private lateinit var bluetoothConnectionService: BluetoothConnectionService
+    private lateinit var bluetoothAdapter: BluetoothAdapter
 
-    lateinit var address: String
-    var ledOn = false
-    var clockRunning = true
-    var paused = true
-    var time = 0
-    var currentTime = 0
+    private lateinit var address: String
+    private var ledOn = false
+    private var clockRunning = true
+    private var paused = true
+    private var time = 0
+    private var currentTime = 0
 
-    lateinit var recorder: MediaRecorder
-    var prevAudioAmplitude: Double = 0.0
-    var prevMaxAudioTime: Int = 0
+    private lateinit var recorder: MediaRecorder
+    private var prevAudioAmplitude: Double = 0.0
+    private var prevMaxAudioTime: Int = 0
 
 
     private lateinit var controlLed: Button
@@ -59,7 +56,6 @@ class ControlActivity: AppCompatActivity() {
         initClock(1)
         bluetoothConnectionService = BluetoothConnectionService(this, handler)
         bluetoothConnectionService.connect(device)
-        Log.d("ControlLog", "Connecting...")
 
         recorder = MediaRecorder()
 
@@ -85,20 +81,41 @@ class ControlActivity: AppCompatActivity() {
                 if (time != currentTime) {
                     time = currentTime
 
-                    val currentAmp = recorder.maxAmplitude
+                    /*
+                       NOTE: Sensing Pipe Line
 
-                    if (currentAmp > 20000) {
+                       Data Extraction: Utilized the android api for the recorder to get max audio
+                       amplitude from microphone, every frame (each fame is 1 sec long)
+
+                       Preprocessing: The max audio amplitude is first normalized and all values
+                       that are under audio threshold will be removed by being set to zero
+
+                       Feature Extraction: If the normalized audio amplitude is over 0, it mean that
+                       it is a point of interest. When ever this is the case the time it took place
+                       along with the value is stored, which will be later used for classification.
+
+                       Classification: The way this is implemented here is that there needs to be
+                       two separate audio peaks above the threshold within 3 seconds, then we
+                       can classify that as a unlock. This method does have it's limitation as if
+                       the client were to clap very fast and both claps are complete within the same
+                       frame, it will be classified as just one clap and thus will not toggle the led
+                    */
+
+                    val currentAmp: Double = normalizeAmplitude(recorder.maxAmplitude)
+                    Log.d("ControlActivityLog", "$currentAmp, $prevAudioAmplitude")
+
+                    if (currentAmp > 0) {
                         Log.d("ControlActivityLog", "$currentAmp, $prevAudioAmplitude")
 
                         var toggled = false
 
-                        if (prevAudioAmplitude > 20000 && (time - prevMaxAudioTime) < 5) {
+                        if (prevAudioAmplitude > 0 && (time - prevMaxAudioTime) <= 3) {
                             Log.d("ControlActivityLog", "$time, $prevMaxAudioTime")
                             toggleLED()
                             toggled = true
                         }
 
-                        prevAudioAmplitude = currentAmp.toDouble()
+                        prevAudioAmplitude = currentAmp
                         prevMaxAudioTime = if (toggled) 0 else time
                     }
                 }
@@ -122,11 +139,9 @@ class ControlActivity: AppCompatActivity() {
         controlListening.setOnClickListener {
             if (!paused) {
                 controlListening.text = "Start Listening"
-                // TODO: Pause listening
                 recorder.stop()
             } else {
                 controlListening.text = "Stop Listening"
-                // TODO: Start listening
                 recorder.start()
             }
 
@@ -171,7 +186,11 @@ class ControlActivity: AppCompatActivity() {
         }
 
         ledOn = !ledOn
-        prevMaxAudioTime = 0
+    }
+
+    private fun normalizeAmplitude(amp: Int): Double {
+        val normalized: Double = (amp / 20_000.0) - 1
+        return if (normalized < 0) 0.0 else normalized
     }
 
     private fun disconnect() {

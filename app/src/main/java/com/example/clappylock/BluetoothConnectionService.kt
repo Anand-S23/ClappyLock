@@ -15,273 +15,201 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.util.*
 
-class BluetoothConnectionService(_context: Context, private val mHandler: Handler) {
+class BluetoothConnectionService(_context: Context, private val handler: Handler) {
+
     companion object {
-        private val NAME = "BluetoothConnectionService"
-        //private val MY_UUID = UUID.fromString("fa98c1d1-afac-22de-9a49-0900200c9a77")
+        private const val NAME = "BluetoothConnectionService"
         private val MY_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
 
-        // Constants that indicate the current connection state
-        const val STATE_NONE = 0       // we're doing nothing
-        const val STATE_LISTEN = 1     // now listening for incoming connections
-        const val STATE_CONNECTING = 2 // now initiating an outgoing connection
-        const val STATE_CONNECTED = 3  // now connected to a remote device
+        const val STATE_NONE = 0
+        const val STATE_LISTEN = 1
+        const val STATE_CONNECTING = 2
+        const val STATE_CONNECTED = 3
     }
 
-    // Member fields
     val context: Context = _context
-    private val mAdapter: BluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
-    private var mAcceptThread: AcceptThread? = null
-    private var mConnectThread: ConnectThread? = null
-    private var mConnectedThread: ConnectedThread? = null
-    private var mState: Int = 0
+    private val bluetoothAdapter: BluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
+    private var acceptThread: AcceptThread? = null
+    private var connectThread: ConnectThread? = null
+    private var connectedThread: ConnectedThread? = null
+    private var currentState: Int = STATE_NONE
 
-    /**
-     * Set the current state of the chat connection
-     *
-     * @param state An integer defining the current connection state
-     */
-    // Give the new state to the Handler so the UI Activity can update
     var state: Int
-        @Synchronized get() = mState
+        @Synchronized get() = currentState
         @Synchronized private set(state) {
-            mState = state
-            mHandler.obtainMessage(ControlActivity.MESSAGE_STATE_CHANGE, state, -1)
+            currentState = state
+            handler.obtainMessage(ControlActivity.MESSAGE_STATE_CHANGE, state, -1)
                 .sendToTarget()
         }
 
-    init {
-        mState = STATE_NONE
-    }
-
-    /**
-     * Return the current connection state.
-     */
-
-    /**
-     * Start the chat service. Specifically start AcceptThread to begin a
-     * session in listening (server) mode. Called by the Activity onResume()
-     */
     @Synchronized
     fun start() {
-        // Cancel any thread attempting to make a connection
-        if (mConnectThread != null) {
-            mConnectThread!!.cancel()
-            mConnectThread = null
+        // Cancel threads trying to make a connection
+        if (connectThread != null) {
+            connectThread!!.cancel()
+            connectThread = null
         }
-        // Cancel any thread currently running a connection
-        if (mConnectedThread != null) {
-            mConnectedThread!!.cancel()
-            mConnectedThread = null
+        // Cancel threads currently connected
+        if (connectedThread != null) {
+            connectedThread!!.cancel()
+            connectedThread = null
         }
         // Start the thread to listen on a BluetoothServerSocket
-        if (mAcceptThread == null) {
-            mAcceptThread = AcceptThread()
-            mAcceptThread!!.start()
+        if (acceptThread == null) {
+            acceptThread = AcceptThread()
+            acceptThread!!.start()
         }
         state = STATE_LISTEN
     }
 
-    /**
-     * Start the ConnectThread to initiate a connection to a remote device.
-     *
-     * @param device The BluetoothDevice to connect
-     */
     @Synchronized
     fun connect(device: BluetoothDevice) {
-        // Cancel any thread attempting to make a connection
-        if (mState == STATE_CONNECTING) {
-            if (mConnectThread != null) {
-                mConnectThread!!.cancel()
-                mConnectThread = null
+        // Cancel threads trying to make a connection
+        if (currentState == STATE_CONNECTING) {
+            if (connectThread != null) {
+                connectThread!!.cancel()
+                connectThread = null
             }
         }
 
-        // Cancel any thread currently running a connection
-        if (mConnectedThread != null) {
-            mConnectedThread!!.cancel()
-            mConnectedThread = null
+        // Cancel threads currently connected
+        if (connectedThread != null) {
+            connectedThread!!.cancel()
+            connectedThread = null
         }
 
-        // Start the thread to connect with the given device
-        mConnectThread = ConnectThread(device)
-        mConnectThread!!.start()
+        // Start the thread to connect with the input device
+        connectThread = ConnectThread(device)
+        connectThread!!.start()
 
         state = STATE_CONNECTING
     }
 
-    /**
-     * Start the ConnectedThread to begin managing a Bluetooth connection
-     *
-     * @param socket The BluetoothSocket on which the connection was made
-     * @param device The BluetoothDevice that has been connected
-     */
     @Synchronized
     fun connected(socket: BluetoothSocket, device: BluetoothDevice) {
-        // Cancel the thread that completed the connection
-        if (mConnectThread != null) {
-            mConnectThread!!.cancel()
-            mConnectThread = null
+        // Cancel the thread that completed connecting
+        if (connectThread != null) {
+            connectThread!!.cancel()
+            connectThread = null
         }
 
-        // Cancel any thread currently running a connection
-        if (mConnectedThread != null) {
-            mConnectedThread!!.cancel()
-            mConnectedThread = null
+        // Cancel threads currently running a connection
+        if (connectedThread != null) {
+            connectedThread!!.cancel()
+            connectedThread = null
         }
 
-        // Cancel the accept thread because we only want to connect to one device
-        if (mAcceptThread != null) {
-            mAcceptThread!!.cancel()
-            mAcceptThread = null
+        // Cancel the accept thread
+        if (acceptThread != null) {
+            acceptThread!!.cancel()
+            acceptThread = null
         }
 
-        // Start the thread to manage the connection and perform transmissions
-        mConnectedThread = ConnectedThread(socket)
-        mConnectedThread!!.start()
+        connectedThread = ConnectedThread(socket)
+        connectedThread!!.start()
 
-        // Send the name of the connected device back to the UI Activity
-        val msg = mHandler.obtainMessage(ControlActivity.MESSAGE_DEVICE_NAME)
+        val msg = handler.obtainMessage(ControlActivity.MESSAGE_DEVICE_NAME)
         val bundle = Bundle()
-        if (ActivityCompat.checkSelfPermission(
-                context,
-                Manifest.permission.BLUETOOTH_CONNECT
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-        }
+        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) { }
         bundle.putString(ControlActivity.DEVICE_NAME, device.name)
         msg.data = bundle
-        mHandler.sendMessage(msg)
+        handler.sendMessage(msg)
 
         state = STATE_CONNECTED
     }
 
-    /**
-     * Stop all threads
-     */
     @Synchronized
     fun stop() {
-        if (mConnectThread != null) {
-            mConnectThread!!.cancel()
-            mConnectThread = null
+        if (connectThread != null) {
+            connectThread!!.cancel()
+            connectThread = null
         }
 
-        if (mConnectedThread != null) {
-            mConnectedThread!!.cancel()
-            mConnectedThread = null
+        if (connectedThread != null) {
+            connectedThread!!.cancel()
+            connectedThread = null
         }
 
-        if (mAcceptThread != null) {
-            mAcceptThread!!.cancel()
-            mAcceptThread = null
+        if (acceptThread != null) {
+            acceptThread!!.cancel()
+            acceptThread = null
         }
 
         state = STATE_NONE
     }
 
-    /**
-     * Write to the ConnectedThread in an unsynchronized manner
-     *
-     * @param out The bytes to write
-     * @see ConnectedThread.write
-     */
     fun write(out: ByteArray) {
-        // Create temporary object
         val r: ConnectedThread?
 
-        // Synchronize a copy of the ConnectedThread
         synchronized(this) {
-            if (mState != STATE_CONNECTED) return
-            r = mConnectedThread
+            if (currentState != STATE_CONNECTED) return
+            r = connectedThread
         }
 
-        // Perform the write unsynchronized
         r!!.write(out)
     }
 
-    /**
-     * Indicate that the connection attempt failed and notify the UI Activity.
-     */
     private fun connectionFailed() {
         state = STATE_LISTEN
 
-        // Send a failure message back to the Activity
-        val msg = mHandler.obtainMessage(ControlActivity.MESSAGE_TOAST)
+        val msg = handler.obtainMessage(ControlActivity.MESSAGE_TOAST)
         val bundle = Bundle()
         bundle.putString(ControlActivity.TOAST, "Unable to connect device")
         msg.data = bundle
 
-        mHandler.sendMessage(msg)
+        handler.sendMessage(msg)
     }
 
-    /**
-     * Indicate that the connection was lost and notify the UI Activity.
-     */
     private fun connectionLost() {
         state = STATE_LISTEN
 
-        // Send a failure message back to the Activity
-        val msg = mHandler.obtainMessage(ControlActivity.MESSAGE_TOAST)
+        val msg = handler.obtainMessage(ControlActivity.MESSAGE_TOAST)
         val bundle = Bundle()
         bundle.putString(ControlActivity.TOAST, "Device connection was lost")
         msg.data = bundle
 
-        mHandler.sendMessage(msg)
+        handler.sendMessage(msg)
     }
 
-    /**
-     * This thread runs while listening for incoming connections. It behaves
-     * like a server-side client. It runs until a connection is accepted
-     * (or until cancelled).
-     */
     private inner class AcceptThread : Thread() {
-        // The local server socket
-        private val mmServerSocket: BluetoothServerSocket?
+        private val bluetoothServerSocket: BluetoothServerSocket?
 
         init {
-            var tmp: BluetoothServerSocket? = null
-            // Create a new listening server socket
+            var temp: BluetoothServerSocket? = null
+
             try {
-                if (ActivityCompat.checkSelfPermission(
-                        context,
-                        Manifest.permission.BLUETOOTH_CONNECT
-                    ) != PackageManager.PERMISSION_GRANTED
-                ) {
-                }
-                tmp = mAdapter.listenUsingRfcommWithServiceRecord(NAME, MY_UUID)
+                if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) { }
+                temp = bluetoothAdapter.listenUsingRfcommWithServiceRecord(NAME, MY_UUID)
             } catch (e: IOException) {
+                // TODO: Logging
             }
 
-            mmServerSocket = tmp
+            bluetoothServerSocket = temp
         }
 
         override fun run() {
             name = "AcceptThread"
-            var socket: BluetoothSocket? = null
-            // Listen to the server socket if we're not connected
-            while (mState != STATE_CONNECTED) {
+            var socket: BluetoothSocket?
+            while (currentState != STATE_CONNECTED) {
                 try {
-                    // This is a blocking call and will only return on a
-                    // successful connection or an exception
-                    socket = mmServerSocket!!.accept()
+                    socket = bluetoothServerSocket!!.accept()
                 } catch (e: IOException) {
+                    // TODO: Logging
                     break
                 }
 
-                // If a connection was accepted
                 if (socket != null) {
                     synchronized(this@BluetoothConnectionService) {
-                        when (mState) {
+                        when (currentState) {
                             STATE_LISTEN, STATE_CONNECTING ->
-                                // Situation normal. Start the connected thread.
                                 connected(socket, socket.remoteDevice)
-                            STATE_NONE, STATE_CONNECTED ->
-                                // Either not ready or already connected. Terminate new socket.
+                            STATE_NONE, STATE_CONNECTED -> {
                                 try {
                                     socket.close()
                                 } catch (e: IOException) {
+                                    // TODO: Logging
                                 }
-
+                            }
                         }
                     }
                 }
@@ -290,91 +218,65 @@ class BluetoothConnectionService(_context: Context, private val mHandler: Handle
 
         fun cancel() {
             try {
-                mmServerSocket!!.close()
+                bluetoothServerSocket!!.close()
             } catch (e: IOException) {
+                // TODO: Logging
             }
-
         }
     }
 
-    /**
-     * This thread runs while attempting to make an outgoing connection
-     * with a device. It runs straight through; the connection either
-     * succeeds or fails.
-     */
-    private inner class ConnectThread(private val mmDevice: BluetoothDevice) : Thread() {
-        private val mmSocket: BluetoothSocket?
+    private inner class ConnectThread(private val device: BluetoothDevice) : Thread() {
+        private val bluetoothSocket: BluetoothSocket?
 
         init {
-            var tmp: BluetoothSocket? = null
-            // Get a BluetoothSocket for a connection with the
-            // given BluetoothDevice
+            var temp: BluetoothSocket? = null
+
             try {
-                if (ActivityCompat.checkSelfPermission(
-                        context,
-                        Manifest.permission.BLUETOOTH_CONNECT
-                    ) != PackageManager.PERMISSION_GRANTED
-                ) {
-                }
-                tmp = mmDevice.createRfcommSocketToServiceRecord(MY_UUID)
+                if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) { }
+                temp = device.createRfcommSocketToServiceRecord(MY_UUID)
             } catch (e: IOException) {
+                // TODO: Logging
             }
 
-            mmSocket = tmp
+            bluetoothSocket = temp
         }
 
         override fun run() {
             name = "ConnectThread"
-            // Always cancel discovery because it will slow down a connection
-            if (ActivityCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.BLUETOOTH_SCAN
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-            }
-            mAdapter.cancelDiscovery()
-            // Make a connection to the BluetoothSocket
+            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) { }
             try {
-                // This is a blocking call and will only return on a
-                // successful connection or an exception
-                mmSocket!!.connect()
+                bluetoothSocket!!.connect()
             } catch (e: IOException) {
                 connectionFailed()
-                // Close the socket
                 try {
-                    mmSocket!!.close()
+                    bluetoothSocket!!.close()
                 } catch (e2: IOException) {
+                    // TODO: Logging
                 }
 
-                // Start the service over to restart listening mode
                 this@BluetoothConnectionService.start()
                 return
             }
 
-            // Reset the ConnectThread because we're done
             synchronized(this@BluetoothConnectionService) {
-                mConnectThread = null
+                connectThread = null
             }
-            // Start the connected thread
-            connected(mmSocket, mmDevice)
+
+            connected(bluetoothSocket, device)
         }
 
         fun cancel() {
             try {
-                mmSocket!!.close()
+                bluetoothSocket!!.close()
             } catch (e: IOException) {
+                // TODO: Logging
             }
-
         }
     }
 
-    /**
-     * This thread runs during a connection with a remote device.
-     * It handles all incoming and outgoing transmissions.
-     */
-    private inner class ConnectedThread(private val mmSocket: BluetoothSocket) : Thread() {
-        private val mmInStream: InputStream?
-        private val mmOutStream: OutputStream?
+    private inner class ConnectedThread(private val bluetoothSocket: BluetoothSocket) : Thread() {
+        private val inStream: InputStream?
+        private val outStream: OutputStream?
 
         init {
             var tmpIn: InputStream? = null
@@ -382,57 +284,47 @@ class BluetoothConnectionService(_context: Context, private val mHandler: Handle
 
             // Get the BluetoothSocket input and output streams
             try {
-                tmpIn = mmSocket.inputStream
-                tmpOut = mmSocket.outputStream
+                tmpIn = bluetoothSocket.inputStream
+                tmpOut = bluetoothSocket.outputStream
             } catch (e: IOException) {
             }
 
-            mmInStream = tmpIn
-            mmOutStream = tmpOut
+            inStream = tmpIn
+            outStream = tmpOut
         }
 
         override fun run() {
             val buffer = ByteArray(1024)
             var bytes: Int
 
-            // Keep listening to the InputStream while connected
             while (true) {
                 try {
-                    // Read from the InputStream
-                    bytes = mmInStream!!.read(buffer)
-                    // Send the obtained bytes to the UI Activity
-                    mHandler.obtainMessage(ControlActivity.MESSAGE_READ, bytes, -1, buffer)
+                    bytes = inStream!!.read(buffer)
+                    handler.obtainMessage(ControlActivity.MESSAGE_READ, bytes, -1, buffer)
                         .sendToTarget()
                 } catch (e: IOException) {
                     connectionLost()
                     break
                 }
-
             }
         }
 
-        /**
-         * Write to the connected OutStream.
-         *
-         * @param buffer The bytes to write
-         */
         fun write(buffer: ByteArray) {
             try {
-                mmOutStream!!.write(buffer)
-                // Share the sent message back to the UI Activity
-                mHandler.obtainMessage(ControlActivity.MESSAGE_WRITE, -1, -1, buffer)
+                outStream!!.write(buffer)
+                handler.obtainMessage(ControlActivity.MESSAGE_WRITE, -1, -1, buffer)
                     .sendToTarget()
             } catch (e: IOException) {
+                // TODO: Logging
             }
-
         }
 
         fun cancel() {
             try {
-                mmSocket.close()
+                bluetoothSocket.close()
             } catch (e: IOException) {
+                // TODO: Logging
             }
-
         }
     }
 }
